@@ -1,0 +1,565 @@
+<!doctype html>
+<!--
+Version 7
+(search !!! for changes)
+- !!! Set a player start point in 2d array
+- !!! Add a power star and closed door
+-->
+<html>
+<head>
+    <title>Grid Runner - Version 7</title>
+</head>
+<body>
+    <h1>Grid Runner - Version 7</h1>
+    <div id="stage"></div>
+
+<script>
+/* = = = = = = = = = = = = = = = = = = = = = = = = = = */
+/* G L O B A L   V A R I A B L E S */
+/* = = = = = = = = = = = = = = = = = = = = = = = = = = */
+
+var cellSize = 24;
+
+/* !!! */
+/*
+mazeMap
+0 : floor
+1 : crate/wall
+2 : dynamite
+3 : explode
+5 : power star
+7 : door closed
+8 : door open
+9 : player staring (row,col)
+*/
+
+
+//4 = slow
+//6 = speed
+//10 = powerup
+var mazeMapSource = [
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    [1,5,1,2,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1],
+    [1,0,0,0,1,1,1,1,1,1,1,0,0,0,1,0,1,1,1,1,1,1,0,1,0,1,1,0,1],
+    [1,1,1,0,1,2,0,0,0,0,0,0,1,0,1,0,0,0,0,1,5,1,0,1,0,1,0,0,1],
+    [1,0,0,0,1,0,1,1,1,1,1,0,1,0,1,1,0,1,1,1,0,1,0,0,0,1,0,0,1],
+    [1,1,1,0,1,0,0,0,0,5,1,0,1,0,0,0,0,1,2,1,0,1,1,1,1,1,0,0,7],
+    [1,2,1,0,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1,0,0,0,0,0,1,1,1,1],
+    [1,0,1,0,4,0,1,0,0,0,0,0,0,2,1,2,1,1,0,1,1,1,1,1,0,0,0,0,1],
+    [1,0,0,0,1,0,0,0,1,1,1,1,1,1,1,0,1,1,0,1,2,0,0,0,0,1,1,0,1],
+    [1,1,0,1,1,1,1,1,1,0,0,0,0,0,0,0,1,1,0,1,1,1,0,0,0,0,1,0,1],
+    [1,0,0,0,1,0,0,0,1,1,1,1,1,0,1,0,1,1,0,1,0,1,0,1,1,0,1,0,1],
+    [1,0,9,0,0,0,0,0,0,0,0,5,1,0,1,5,0,0,0,0,0,1,0,1,1,0,1,0,1],
+    [1,0,0,0,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,0,1,1,0,5,0,1],
+    [1,1,1,1,1,0,0,0,0,0,1,0,1,0,1,1,0,0,1,6,0,0,0,1,1,0,1,0,1],
+    [1,0,0,0,0,0,1,1,1,0,1,0,1,0,1,0,0,0,1,1,1,1,0,1,1,0,1,2,1],
+    [1,0,1,1,1,1,1,10,1,0,0,0,0,0,1,0,1,0,0,1,1,0,0,1,1,0,1,1,1],
+    [1,0,1,0,0,0,0,0,1,1,0,1,0,0,1,0,1,1,0,0,0,0,0,1,1,0,0,0,1],
+    [1,0,1,1,1,0,1,1,1,1,0,1,2,0,0,0,1,1,1,0,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,1,1,1,1,0,1,0,0,1,1,0,1,0,0,0,0,0,0,2,1],
+    [1,2,1,1,1,1,1,1,0,0,0,0,0,0,1,1,0,5,1,0,0,5,1,1,1,1,1,1,1],
+    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+];
+
+var mazeMap = [];
+//copy source into working array
+for (var i = 0; i < mazeMapSource.length; i++){
+    mazeMap[i] = mazeMapSource[i].slice();
+}
+
+buildStage();
+
+var gameInfo = document.getElementById("gameInfo");
+var timeDisplay = document.getElementById("timeDisplay");
+var powerUpImage = document.getElementById("powerUpImage");
+gameInfo.style.visibility = "hidden";
+/* !!! determine the player row,col from the 2d array */
+var playerRow = 0;
+var playerCol = 0;
+setPlayerStartingPosition();
+
+var playerSize = 24;    
+var player = buildPlayer();
+var playerDir = 0;
+
+var playerTime = 90;
+
+var gameTimer;
+
+var playerHasPowerUp = false;
+
+//START, PLAYING , POWERUP ,  DEAD , LEVELCOMPLETE
+var gameState = "START";
+
+var keys = [];
+
+window.addEventListener("keydown", keydownHandler, false);
+window.addEventListener("keyup", keyupHandler, false);
+
+render();
+
+setInterval(checkInput, 1);
+var playerSpeed = setInterval(movePlayer, 150);
+
+/* = = = = = = = = = = = = = = = = = = = = = = = = = = */
+/* F U N C T I O N S */
+/* = = = = = = = = = = = = = = = = = = = = = = = = = = */
+
+function keydownHandler() {
+    keys[event.keyCode] = true;
+}
+
+function keyupHandler() {
+    keys[event.keyCode] = false;
+}
+
+function checkInput() {
+    /* ATTEMPT TO CHANGE PLAYER DIRECTION */
+    if (playerDir !== 0 && gameState == "START"){
+        gameState = "PLAYING";
+        gameTimer = setInterval(countDown, 1000);
+    } 
+    if((gameState == "PLAYING") || (gameState == "START")){
+    
+    if ( (keys[37]) && (playerCanMove(playerRow, playerCol-1)) ) {
+        playerDir = 37;
+    } else if ( (keys[38]) && (playerCanMove(playerRow-1, playerCol)) ) {
+        playerDir = 38;
+    } else if ( (keys[39]) && (playerCanMove(playerRow, playerCol+1)) ) {
+        playerDir = 39;
+    } else if ( (keys[40]) && (playerCanMove(playerRow+1, playerCol)) ) {
+        playerDir = 40;
+    }
+}
+
+    if(gameState == "POWERUP"){
+    
+    if ( (keys[37]) && (playerCanMoveThroughWalls(playerRow, playerCol-1)) ) {
+        playerDir = 37;
+    } else if ( (keys[38]) && (playerCanMoveThroughWalls(playerRow-1, playerCol)) ) {
+        playerDir = 38;
+    } else if ( (keys[39]) && (playerCanMoveThroughWalls(playerRow, playerCol+1)) ) {
+        playerDir = 39;
+    } else if ( (keys[40]) && (playerCanMoveThroughWalls(playerRow+1, playerCol)) ) {
+        playerDir = 40;
+    }
+}
+
+
+    else if (gameState == "DEAD"){
+        if(keys[32]){
+            clearInterval(gameTimer);
+            restartGame();
+        }
+    } else if (gameState == "LEVELCOMPLETE"){
+        if(keys[32]){
+            clearInterval(gameTimer);
+            loadNextlevel();
+        }
+    } if (keys[82]){
+        clearInterval(gameTimer);
+        restartGame();
+    } if((playerHasPowerUp) && (keys[32])){
+        walkThroughWallsTimer();
+    }
+}
+
+
+
+function countDown(){
+    playerTime--;
+    timeDisplay.innerHTML = playerTime;
+    console.log(playerTime);
+    render();
+    
+    
+    if(playerTime <= 0){
+        clearInterval(gameTimer);
+        gameInfo.innerHTML = "YOU RAN OUT OF TIME<br>press 'space' to restart";
+        gameInfo.style.visibility = "visible";
+        gameState = "DEAD";
+        
+        if(keys[32]){
+            restartGame();
+        }
+    }
+}
+
+
+function loadNextlevel(){
+    
+}
+
+
+
+
+function restartGame(){
+    gameInfo.style.visibility = "hidden";
+    
+    mazeMap = [];
+    
+    for (var i = 0; i < mazeMapSource.length; i++){
+    mazeMap[i] = mazeMapSource[i].slice();
+    }
+    
+    
+    gameState = "START";
+    player.style.visibility = "visible";
+    playerDir = 0;
+    
+    
+    playerTime = 90;
+    timeDisplay.innerHTML = playerTime;
+    
+    var playerHasPowerUp = false;
+    
+    setPlayerStartingPosition();
+    render();
+}
+
+
+
+function movePlayer() {
+    
+    if (gameState == "PLAYING") {
+        
+        /* MOVE THE ONSCREEN PLAYER IN THE CURRENT DIRECTION */
+        if ( (playerDir == 37) && (playerCanMove(playerRow, playerCol-1)) ) {
+            playerCol -= 1;
+        } else if ( (playerDir == 38) && (playerCanMove(playerRow-1, playerCol)) ) {
+            playerRow -= 1;
+        } else if ( (playerDir == 39) && (playerCanMove(playerRow, playerCol+1)) ) {
+            playerCol += 1;
+        } else if ( (playerDir == 40) && (playerCanMove(playerRow+1, playerCol)) ) {
+            playerRow += 1;
+        }
+    }
+    else if (gameState == "POWERUP") {
+        
+        /* MOVE THE ONSCREEN PLAYER IN THE CURRENT DIRECTION */
+        if ( (playerDir == 37) && (playerCanMoveThroughWalls(playerRow, playerCol-1)) ) {
+            playerCol -= 1;
+        } else if ( (playerDir == 38) && (playerCanMoveThroughWalls(playerRow-1, playerCol)) ) {
+            playerRow -= 1;
+        } else if ( (playerDir == 39) && (playerCanMoveThroughWalls(playerRow, playerCol+1)) ) {
+            playerCol += 1;
+        } else if ( (playerDir == 40) && (playerCanMoveThroughWalls(playerRow+1, playerCol)) ) {
+            playerRow += 1;
+        }
+    }
+    if ((gameState == "PLAYING") || (gameState == "POWERUP")) {
+        /* check if the player is standing on a special tile */
+        if (mazeMap[playerRow][playerCol] == 2) {       /* dynamite */
+            /* kill the player */
+            clearInterval(gameTimer);
+            gameState = "DEAD";
+            gameInfo.innerHTML = "YOU HAVE DIED<br>press 'space' to restart";
+            gameInfo.style.visibility = "visible";
+           
+            /* hide the player */
+            player.style.visibility = "hidden";
+            /* change dynamite to explosion */
+            mazeMap[playerRow][playerCol] = 3;        
+        } else if (mazeMap[playerRow][playerCol] == 5) {    /* power star */
+            mazeMap[playerRow][playerCol] = 0;
+            if (countPowerStars() == 0) {
+                /* all stars have been collected, open the door */
+                openStarDoor();
+            }
+        } else if (mazeMap[playerRow][playerCol] == 8){
+            clearInterval(gameTimer);
+            gameState = "LEVELCOMPLETE";
+            gameInfo.innerHTML = "LEVEL COMPLETE <br>press 'space' to continue";
+            gameInfo.style.visibility = "visible";
+            
+        } else if (mazeMap[playerRow][playerCol] == 4){ //slow down
+            slowPlayer();
+        } else if (mazeMap[playerRow][playerCol] == 6){ //speed up/ fast
+            fastPlayer();
+        } else if (mazeMap[playerRow][playerCol] == 10){ //Power up / walk through walls
+            playerHasPowerUp = true;
+            powerUpImage.style.visibility = "visible";
+            mazeMap[playerRow][playerCol] = 0;
+        }
+    }
+        
+    
+        render();
+    }
+
+
+function playerCanMove(row, col) {
+    /* Pass this function a row and column of the 2d array, and it will */
+    /* return true if the player can occupy that space */
+    if ((row >= 0) && (row < mazeMap.length) && (col >= 0) && (col < mazeMap[0].length)) {
+        switch(mazeMap[row][col]) {
+            case 0:                 /* floor */
+            case 2:                 /* dynamite */
+            case 4:                 // Slow Down
+            case 5:                 /* power star */
+            case 6:                 /* Speed Up*/
+            case 8:                 /* open star door */
+            case 10:
+                return true;
+            default:                 /* wall */
+                return false;
+        }
+    } else {
+        return false;
+    }
+}
+
+
+
+function playerCanMoveThroughWalls(row, col) {
+    /* Pass this function a row and column of the 2d array, and it will */
+    /* return true if the player can occupy that space */
+    if ((row >= 0) && (row < mazeMap.length) && (col >= 0) && (col < mazeMap[0].length)) {
+        switch(mazeMap[row][col]) {
+            case 0:                 /* floor */
+            case 1:
+            case 2:                 /* dynamite */
+            case 4:                 // Slow Down
+            case 5:                 /* power star */
+            case 6:                 /* Speed Up*/
+            case 8:                 /* open star door */
+            case 10:
+                return true;
+            default:                 /* wall */
+                return false;
+        }
+    } else {
+        return false;
+    }
+}
+
+
+
+
+function render() {
+    
+    renderStage();
+    
+    player.style.left = cellSize * playerCol + ((cellSize-playerSize)/2) + "px";
+    player.style.top = cellSize * playerRow + ((cellSize-playerSize)/2) + "px";
+
+    if (playerDir == 37) { 
+        player.src = "images/scaryLeft.png";
+    } else if (playerDir == 38) {
+        player.src = "images/scaryUp.png";
+    } else if (playerDir == 39) {
+        player.src = "images/scaryRight.png";
+    } else {
+        player.src = "images/scaryDown.png";
+    }
+}
+
+function buildStage() {
+    
+    /*Determine Rows and Cols*/
+    var totalRows = mazeMap.length;
+    var totalCols = mazeMap[0].length;
+
+    /*Get the stage and set its width/height*/
+    var stage = document.getElementById("stage");
+    stage.style.position = "relative";
+    stage.style.width = totalCols * cellSize + "px";    
+    stage.style.height = totalRows * cellSize + "px";    
+    /*stage.style.backgroundColor = "pink";*/
+    stage.style.backgroundImage = "url(images/pattern2.png)";
+
+    /*loop through the 2d array*/
+    for (var row = 0; row < totalRows; row++) {
+        for (var col = 0; col < totalCols; col++) {
+            var newDiv = document.createElement("div");
+            newDiv.setAttribute("id", "tile-" + row + "-" + col);
+            newDiv.style.position = "absolute";
+            newDiv.style.left = cellSize * col + "px";
+            newDiv.style.top = cellSize * row + "px";
+            newDiv.style.width = cellSize + "px";
+            newDiv.style.height = cellSize + "px";
+            document.getElementById("stage").appendChild(newDiv);
+        }
+    }
+    
+    var newP = document.createElement("p");
+    newP.setAttribute("id", "gameInfo");
+    newP.style.position = "absolute";
+    newP.style.left = "0px";
+    newP.style.bottom = "50%";
+    
+    newP.style.color = "yellow";
+    newP.style.textAlign = "center";
+    newP.style.width = "100%";
+    newP.style.backgroundColor = "rgba(0,0,0, 0.8)";
+    stage.appendChild(newP);
+    
+    var time = document.createElement("p");
+    time.setAttribute("id", "timeDisplay");
+    time.style.position = "absolute";
+    time.style.right = "10px";
+    time.style.bottom = "-5px";
+    
+    time.style.color = "black";
+    time.style.textAlign = "center";
+    time.style.fontSize = "20px";
+    time.style.fontFamily = "Verdana";
+    time.style.visibility = "visible";
+    time.style.backgroundColor = "white";
+    time.style.border = "solid black 2px";
+    time.innerHTML = "90"; ////////////////////////////////////////////////Change when changing time limit!
+    
+    stage.appendChild(time);
+    
+    var powerUpImage = document.createElement("img");
+    powerUpImage.src = "images/powerUp.png";
+    powerUpImage.setAttribute("id", "powerUpImage");
+    powerUpImage.style.visibility = "hidden";
+    powerUpImage.style.position = "absolute";
+    powerUpImage.style.right = "45px";
+    powerUpImage.style.bottom = "15px";
+    powerUpImage.style.backgroundColor = "white";
+    powerUpImage.style.border = "solid black 2px";
+    
+    stage.appendChild(powerUpImage);
+}
+
+function renderStage() {
+    var totalRows = mazeMap.length;
+    var totalCols = mazeMap[0].length;
+
+    /*loop through the 2d array*/
+    for (var row = 0; row < totalRows; row++) {
+        for (var col = 0; col < totalCols; col++) {
+            var thisDiv = document.getElementById("tile-" + row + "-" + col);
+            switch(mazeMap[row][col]) {
+                case 0: /* floor */
+                    thisDiv.style.backgroundImage = "";
+                    break;
+                case 1: /* wall */
+                    thisDiv.style.backgroundImage = "url(images/BG2.png)";
+                    break;
+                case 2: /* dynamite */
+                    thisDiv.style.backgroundImage = "url(images/mine.png)";
+                    break;
+                case 3: /* explode */
+                    thisDiv.style.backgroundImage = "url(images/boom.png)";
+                    break;
+                case 4: /* Slow Down */
+                    thisDiv.style.backgroundImage = "url(images/slowDown.png)";
+                    break;
+                case 5: /* power star */
+                    thisDiv.style.backgroundImage = "url(images/key3.png)";
+                    break;
+                    case 6: /* Speed Up */
+                    thisDiv.style.backgroundImage = "url(images/speedUp.png)";
+                    break;
+                case 7: /* door closed */
+                    thisDiv.style.backgroundImage = "url(images/doorClosed.png)";
+                    break;
+                case 8: /* door open */
+                    thisDiv.style.backgroundImage = "url(images/doorOpen.png)";
+                    break;
+                case 10: /* door open */
+                    thisDiv.style.backgroundImage = "url(images/powerUp.png)";
+                    break;
+            }
+        }
+    }
+}
+
+function buildPlayer() {
+    var stage = document.getElementById("stage");
+    var newDiv = document.createElement("img");
+    newDiv.src = "images/scaryDown.png";
+    newDiv.style.position = "absolute";
+    newDiv.style.width = playerSize + "px";
+    newDiv.style.height = playerSize + "px";
+    newDiv.style.transition = "left 0.1s, top 0.1s";
+    stage.appendChild(newDiv);
+    return newDiv;
+}
+
+
+function walkThroughWallsTimer(){
+    gameState = "POWERUP";
+    powerUpImage.style.visibility = "hidden";
+    setTimeout(powerTimeout, 550);
+}
+
+function powerTimeout(){
+    gameState = "PLAYING";
+}
+
+
+function slowPlayer(){
+    setTimeout(timer, 2000);
+    clearInterval(playerSpeed);
+    playerSpeed = setInterval(movePlayer, 450);
+    
+}
+function timer(){
+    clearInterval(playerSpeed);
+    playerSpeed = setInterval(movePlayer, 150);
+    
+}
+
+function fastPlayer(){
+    setTimeout(timer, 3000);
+    clearInterval(playerSpeed);
+    playerSpeed = setInterval(movePlayer, 70);
+    
+}
+
+
+
+function openStarDoor() {
+    /* look for tile id = to 7 and replace them with an 8 */
+    var totalRows = mazeMap.length;
+    var totalCols = mazeMap[0].length;
+
+    for (var row = 0; row < totalRows; row++) {
+        for (var col = 0; col < totalCols; col++) {
+            if (mazeMap[row][col] == 7) {
+                mazeMap[row][col] = 8;
+                
+            }
+        }
+    }        
+}
+
+function countPowerStars() {
+    var totalRows = mazeMap.length;
+    var totalCols = mazeMap[0].length;
+    var starCount = 0;
+    
+    for (var row = 0; row < totalRows; row++) {
+        for (var col = 0; col < totalCols; col++) {
+            if (mazeMap[row][col] == 5) {
+                starCount++;
+            }    
+        }
+    }
+    
+    return starCount;
+}
+
+function setPlayerStartingPosition() {
+    var totalRows = mazeMap.length;
+    var totalCols = mazeMap[0].length;
+    
+    for (var row = 0; row < totalRows; row++) {
+        for (var col = 0; col < totalCols; col++) {
+            if (mazeMap[row][col] == 9) {
+                playerRow = row;
+                playerCol = col;
+                mazeMap[row][col] = 0;
+            }
+        }
+    }
+}
+</script>
+
+</body>
+
+</html>
